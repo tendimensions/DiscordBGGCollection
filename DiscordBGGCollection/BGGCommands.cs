@@ -17,6 +17,17 @@ namespace DiscordBGGCollection
             _httpClient = httpClient;
         }
 
+        [Command("help")]
+        public async Task HelpAsync()
+        {
+            var helpMessage = "Available commands:\n" +
+                              "/bgg help - Lists all available commands.\n" +
+                              "/bgg games <username> - Fetches games for the specified BGG username.\n" +
+                              "/bgg plays <username> - Fetches play statistics for the specified BGG username.";
+
+            await ReplyAsync(helpMessage);
+        }
+
         [Command("games")]
         public async Task GetGamesAsync(string username = null)
         {
