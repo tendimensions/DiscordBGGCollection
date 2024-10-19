@@ -8,15 +8,18 @@ namespace DiscordBGGCollection
     using System.Threading.Tasks;
     using System.Xml.Linq;
     using Discord.Commands;
+    using Microsoft.Extensions.Logging;
 
     [Group("bgg")]
     public class BGGCommands : ModuleBase<SocketCommandContext>
     {
         private readonly HttpClient _httpClient;
+        private readonly ILogger<BGGCommands> _logger;
 
-        public BGGCommands(HttpClient httpClient)
+        public BGGCommands(HttpClient httpClient, ILogger<BGGCommands> logger)
         {
             _httpClient = httpClient;
+            _logger = logger;
         }
 
         [Command("help")]
@@ -53,23 +56,30 @@ namespace DiscordBGGCollection
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
+                using (var memoryStream = new MemoryStream())
                 {
-                    await ReplyAsync(msg);
-                }
-                // Looking to replace with a file download instead
-                //using (var memoryStream = new MemoryStream())
-                //{
-                //    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
-                //    {
-                //        await writer.WriteAsync(message);
-                //        await writer.FlushAsync();
-                //    }
+                    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
+                    {
+                        await writer.WriteAsync(message);
+                        await writer.FlushAsync();
+                    }
 
-                //    memoryStream.Position = 0;
-                //    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
-                //}
+                    memoryStream.Position = 0;
+
+                    // Ensure the file metadata is correctly set
+                    var fileName = "games.txt";
+                    var fileDescription = $"Games for {username}:";
+
+                    try
+                    {
+                        await Context.Channel.SendFileAsync(memoryStream, fileName, fileDescription);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error sending file");
+                        await ReplyAsync($"Error sending file: {ex.Message}");
+                    }
+                }
             }
             else
             {

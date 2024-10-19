@@ -7,6 +7,7 @@ using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DiscordBGGCollection
 {
@@ -28,6 +29,7 @@ namespace DiscordBGGCollection
                 .AddSingleton(_commands)
                 .AddSingleton(new HttpClient()) // Register HttpClient
                 .AddSingleton<BGGCommands>() // Register Commands class
+                .AddLogging(configure => configure.AddConsole()) // Add logging
                 .BuildServiceProvider();
 
             // Load configuration
