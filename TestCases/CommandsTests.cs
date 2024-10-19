@@ -5,11 +5,13 @@ using Xunit;
 
 public class CommandsTests
 {
-    [Fact]
-    public async Task FetchGamesFromBGG_ReturnsGamesList()
+    [Theory]
+    [InlineData("tendimensions")]
+    [InlineData("sjkellyfetti")]
+    [InlineData("ariaka5")]
+    public async Task FetchGamesFromBGG_ReturnsGamesList(string username)
     {
         // Arrange
-        var username = "tendimensions";
         var httpClient = new HttpClient();
         var commands = new Commands(httpClient);
 

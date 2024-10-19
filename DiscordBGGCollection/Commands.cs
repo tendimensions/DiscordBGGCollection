@@ -47,7 +47,7 @@ namespace DiscordBGGCollection
 
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
-            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?username={username}");
+            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
             var xdoc = XDocument.Parse(response);
 
             var games = xdoc.Descendants("item")
