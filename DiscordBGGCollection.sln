@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35410.144 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscordBGGCollection", "DiscordBGGCollection\DiscordBGGCollection.csproj", "{3081F4AA-BB0F-4B53-B38A-4A847EDB756A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestCases", "TestCases\TestCases.csproj", "{09BBC9C8-2488-4231-B7FC-C99C0D051946}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3081F4AA-BB0F-4B53-B38A-4A847EDB756A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3081F4AA-BB0F-4B53-B38A-4A847EDB756A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3081F4AA-BB0F-4B53-B38A-4A847EDB756A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3081F4AA-BB0F-4B53-B38A-4A847EDB756A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09BBC9C8-2488-4231-B7FC-C99C0D051946}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09BBC9C8-2488-4231-B7FC-C99C0D051946}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09BBC9C8-2488-4231-B7FC-C99C0D051946}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09BBC9C8-2488-4231-B7FC-C99C0D051946}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
