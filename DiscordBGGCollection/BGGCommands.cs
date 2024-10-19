@@ -7,18 +7,25 @@ namespace DiscordBGGCollection
     using System.Xml.Linq;
     using Discord.Commands;
 
-    public class Commands : ModuleBase<SocketCommandContext>
+    [Group("bgg")]
+    public class BGGCommands : ModuleBase<SocketCommandContext>
     {
         private readonly HttpClient _httpClient;
 
-        public Commands(HttpClient httpClient)
+        public BGGCommands(HttpClient httpClient)
         {
             _httpClient = httpClient;
         }
 
         [Command("games")]
-        public async Task GetGamesAsync(string username)
+        public async Task GetGamesAsync(string username = null)
         {
+            if (string.IsNullOrEmpty(username))
+            {
+                await ReplyAsync("Please provide a username. Usage: /bgg games <username>");
+                return;
+            }
+
             var games = await FetchGamesFromBGG(username);
             if (games == null || !games.Any())
             {
@@ -45,7 +52,7 @@ namespace DiscordBGGCollection
             }
         }
 
-        public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
+        private async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
             var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
             var xdoc = XDocument.Parse(response);
@@ -72,6 +79,16 @@ namespace DiscordBGGCollection
                 messages.Add(message.Substring(i, Math.Min(maxLength, message.Length - i)));
             }
             return messages;
+        }
+
+        [Command("plays")]
+        public async Task GetPlaysAsync(string username = null)
+        {
+            if (string.IsNullOrEmpty(username))
+            {
+                await ReplyAsync("[NOT FINISHED] Please provide a username. Usage: /bgg plays <username>");
+                return;
+            }
         }
     }
 }

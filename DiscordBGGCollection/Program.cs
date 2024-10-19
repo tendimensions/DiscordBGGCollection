@@ -27,7 +27,7 @@ namespace DiscordBGGCollection
                 .AddSingleton(_client)
                 .AddSingleton(_commands)
                 .AddSingleton(new HttpClient()) // Register HttpClient
-                .AddSingleton<Commands>() // Register Commands class
+                .AddSingleton<BGGCommands>() // Register Commands class
                 .BuildServiceProvider();
 
             // Load configuration
