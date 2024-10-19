@@ -1,8 +1,10 @@
 namespace DiscordBGGCollection
 {
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Net.Http;
+    using System.Text;
     using System.Threading.Tasks;
     using System.Xml.Linq;
     using Discord.Commands;
@@ -56,6 +58,18 @@ namespace DiscordBGGCollection
                 {
                     await ReplyAsync(msg);
                 }
+                // Looking to replace with a file download instead
+                //using (var memoryStream = new MemoryStream())
+                //{
+                //    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
+                //    {
+                //        await writer.WriteAsync(message);
+                //        await writer.FlushAsync();
+                //    }
+
+                //    memoryStream.Position = 0;
+                //    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
+                //}
             }
             else
             {
@@ -63,7 +77,7 @@ namespace DiscordBGGCollection
             }
         }
 
-        private async Task<List<BoardGame>> FetchGamesFromBGG(string username)
+        public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
             var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
             var xdoc = XDocument.Parse(response);
