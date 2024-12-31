@@ -133,11 +133,11 @@ namespace DiscordBGGCollection
 
             if (!commonGames.Any())
             {
-                await ReplyAsync("No common games found between the two users.");
+                await ReplyAsync($"No games found where {usernameCollection} has something {usernameToPlay} wants to play.");
                 return;
             }
 
-            var message = $"Common games for {usernameToPlay} and {usernameCollection}: {string.Join(", ", commonGames)}";
+            var message = $"Games that {usernameToPlay} wants to play that {usernameCollection} has: {string.Join(", ", commonGames)}";
 
             // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
