@@ -22,4 +22,22 @@ public class CommandsTests
         Assert.NotNull(result);
         Assert.NotEmpty(result);
     }
+
+    [Theory]
+    [InlineData("tendimensions")]
+    [InlineData("sjkellyfetti")]
+    [InlineData("ariaka5")]
+    public async Task FetchWantToPlayGamesFromBGG_ReturnsGamesList(string username)
+    {
+        // Arrange
+        var httpClient = new HttpClient();
+        var commands = new Commands(httpClient);
+
+        // Act
+        var result = await commands.FetchWantToPlayGamesFromBGG(username);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEmpty(result);
+    }
 }

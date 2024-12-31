@@ -2,6 +2,7 @@ namespace DiscordBGGCollection
 {
     using System.Collections.Generic;
     using System.IO;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Net.Http;
     using System.Text;
@@ -77,9 +78,57 @@ namespace DiscordBGGCollection
             }
         }
 
+        [Command("wanttoplay")]
+        public async Task GetWantToPlayGamesAsync(string username)
+        {
+            var games = await FetchWantToPlayGamesFromBGG(username);
+            if (games == null || !games.Any())
+            {
+                await ReplyAsync("Could not fetch games for the provided username.");
+                return;
+            }
+
+            var gameNames = games.Select(g => g.Name);
+            var message = $"Games for {username}: {string.Join(", ", gameNames)}";
+
+            // Split the message if it exceeds Discord's message length limit
+            const int maxMessageLength = 2000;
+            if (message.Length > maxMessageLength)
+            {
+                var messages = SplitMessage(message, maxMessageLength);
+                foreach (var msg in messages)
+                {
+                    await ReplyAsync(msg);
+                }
+            }
+            else
+            {
+                await ReplyAsync(message);
+            }
+        }
+
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
             var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
+            var xdoc = XDocument.Parse(response);
+
+            var games = xdoc.Descendants("item")
+                .Select(item => new BoardGame
+                {
+                    Name = item.Element("name")?.Value,
+                    YearPublished = int.Parse(item.Element("yearpublished")?.Value ?? "0"),
+                    ImageUrl = item.Element("image")?.Value,
+                    ThumbnailUrl = item.Element("thumbnail")?.Value,
+                    NumPlays = int.Parse(item.Element("numplays")?.Value ?? "0")
+                })
+                .ToList();
+
+            return games;
+        }
+
+        public async Task<List<BoardGame>> FetchWantToPlayGamesFromBGG(string username)
+        {
+            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?wanttoplay=1&username={username}");
             var xdoc = XDocument.Parse(response);
 
             var games = xdoc.Descendants("item")
