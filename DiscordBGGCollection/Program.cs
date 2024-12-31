@@ -70,10 +70,33 @@ namespace DiscordBGGCollection
             if (message.Author.IsBot) return;
 
             int argPos = 0;
-            if (message.HasStringPrefix("/", ref argPos))
+
+            // If only /bgg has been sent, display help
+            if (message.Content.Trim().Equals("/bgg", StringComparison.OrdinalIgnoreCase))
+            {
+                var result = await _commands.ExecuteAsync(context, "bgg help", _services);
+                if (!result.IsSuccess)
+                {
+                    Console.WriteLine(result.ErrorReason);
+                }
+            }
+            else if (message.HasStringPrefix("/", ref argPos))
             {
                 var result = await _commands.ExecuteAsync(context, argPos, _services);
-                if (!result.IsSuccess) Console.WriteLine(result.ErrorReason);
+                if (!result.IsSuccess)
+                {
+                    Console.WriteLine(result.ErrorReason);
+
+                    // If the command is unknown or unregistered, display help
+                    if (result.Error == CommandError.UnknownCommand)
+                    {
+                        var result2 = await _commands.ExecuteAsync(context, "bgg help", _services);
+                        if (!result2.IsSuccess)
+                        {
+                            Console.WriteLine(result2.ErrorReason);
+                        }
+                    }
+                }
             }
         }
     }

@@ -26,7 +26,9 @@ namespace DiscordBGGCollection
             var helpMessage = "Available commands:\n" +
                               "/bgg help - Lists all available commands.\n" +
                               "/bgg games <username> - Fetches games for the specified BGG username.\n" +
-                              "/bgg plays <username> - Fetches play statistics for the specified BGG username.";
+                              "/bgg plays <username> - Fetches play statistics for the specified BGG username.\n" +
+                              "/bgg wanttoplay <username> - Fetches the user's 'Want to Play' collection\n" +
+                              "/bgg compare <username1> <username2> - Provides the overlap of games between the 'Want to Play' of the first user with the collection of the second user\n";
 
             await ReplyAsync(helpMessage);
         }
@@ -90,6 +92,52 @@ namespace DiscordBGGCollection
 
             var gameNames = games.Select(g => g.Name);
             var message = $"Games for {username}: {string.Join(", ", gameNames)}";
+
+            // Split the message if it exceeds Discord's message length limit
+            const int maxMessageLength = 2000;
+            if (message.Length > maxMessageLength)
+            {
+                var messages = SplitMessage(message, maxMessageLength);
+                foreach (var msg in messages)
+                {
+                    await ReplyAsync(msg);
+                }
+            }
+            else
+            {
+                await ReplyAsync(message);
+            }
+        }
+
+        [Command("compare")]
+        public async Task GetComparisonGamesAsync(string usernameToPlay, string usernameCollection)
+        {
+            var gamesToPlay = await FetchWantToPlayGamesFromBGG(usernameToPlay);
+            if (gamesToPlay == null || !gamesToPlay.Any())
+            {
+                await ReplyAsync($"Could not fetch 'want to play' games for the provided username {usernameToPlay}.");
+                return;
+            }
+
+            var gamesInCollection = await FetchGamesFromBGG(usernameCollection);
+            if (gamesInCollection == null || !gamesInCollection.Any())
+            {
+                await ReplyAsync($"Could not fetch collection games for the provided username {usernameCollection}.");
+                return;
+            }
+
+            var commonGames = gamesToPlay
+                .Select(g => g.Name)
+                .Intersect(gamesInCollection.Select(g => g.Name))
+                .ToList();
+
+            if (!commonGames.Any())
+            {
+                await ReplyAsync("No common games found between the two users.");
+                return;
+            }
+
+            var message = $"Common games for {usernameToPlay} and {usernameCollection}: {string.Join(", ", commonGames)}";
 
             // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
