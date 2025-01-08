@@ -19,6 +19,7 @@ namespace DiscordBGGCollection
     using Discord.Commands;
     using Polly;
     using Polly.Retry;
+    using System.ComponentModel;
 
     [Group("bgg")]
     public class BGGCommands : ModuleBase<SocketCommandContext>
@@ -49,6 +50,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("games")]
+        [Description("List all games for a provided BGG username")]
         public async Task GetGamesAsync(string username = null)
         {
             if (string.IsNullOrEmpty(username))
@@ -71,22 +73,27 @@ namespace DiscordBGGCollection
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
+                //var messages = SplitMessage(message, maxMessageLength);
+                //foreach (var msg in messages)
+                //{
+                //    await ReplyAsync(msg);
+                //}
                 // Looking to replace with a file download instead
                 using (var memoryStream = new MemoryStream())
                 {
+                    Console.WriteLine("Preparing message in memory");
                     using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
                     {
                         await writer.WriteAsync(message);
                         await writer.FlushAsync();
                     }
 
+                    Console.WriteLine("Message in memory ready to stream");
                     memoryStream.Position = 0;
-                    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
+                    //await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
+                    await Context.Channel.SendFileAsync(memoryStream, "games.txt");
+
+                    Console.WriteLine("Async sent file");
                 }
             }
             else
@@ -96,6 +103,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("wanttoplay")]
+        [Description("Retrieve list of games <BGG username> wants to play")]
         public async Task GetWantToPlayGamesAsync(string username)
         {
             var games = await FetchWantToPlayGamesFromBGG(username);
@@ -125,6 +133,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("compare")]
+        [Description("Compare <BGG username1> list of want to plays with <BGG username2>")]
         public async Task GetComparisonGamesAsync(string usernameToPlay, string usernameCollection)
         {
             var gamesToPlay = await FetchWantToPlayGamesFromBGG(usernameToPlay);
