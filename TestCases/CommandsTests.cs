@@ -31,7 +31,7 @@ public class CommandsTests
     {
         // Arrange
         var httpClient = new HttpClient();
-        var commands = new Commands(httpClient);
+        var commands = new BGGCommands(httpClient);
 
         // Act
         var result = await commands.FetchWantToPlayGamesFromBGG(username);

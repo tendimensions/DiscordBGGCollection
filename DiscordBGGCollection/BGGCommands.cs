@@ -1,3 +1,11 @@
+/*
+ * This file is part of the DiscordBGGCollection project.
+ *
+ * (c) Jason Poggioli <jason.poggioli@gmail.com>
+ *
+ * Register a Discord Bot at https://discord.com/developers/applications
+ */
+
 namespace DiscordBGGCollection
 {
     using System.Collections.Generic;
@@ -9,21 +17,28 @@ namespace DiscordBGGCollection
     using System.Threading.Tasks;
     using System.Xml.Linq;
     using Discord.Commands;
+    using Polly;
+    using Polly.Retry;
 
     [Group("bgg")]
     public class BGGCommands : ModuleBase<SocketCommandContext>
     {
         private readonly HttpClient _httpClient;
+        private readonly AsyncRetryPolicy _retryPolicy;
 
         public BGGCommands(HttpClient httpClient)
         {
             _httpClient = httpClient;
+            _retryPolicy = Policy
+                .Handle<HttpRequestException>()
+                .Or<TaskCanceledException>()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
         }
 
         [Command("help")]
         public async Task HelpAsync()
         {
-            var helpMessage = "Available commands:\n" +
+            var helpMessage = "Available commands (Note: usernames are BGG usernames):\n" +
                               "/bgg help - Lists all available commands.\n" +
                               "/bgg games <username> - Fetches games for the specified BGG username.\n" +
                               "/bgg plays <username> - Fetches play statistics for the specified BGG username.\n" +
@@ -62,17 +77,17 @@ namespace DiscordBGGCollection
                     await ReplyAsync(msg);
                 }
                 // Looking to replace with a file download instead
-                //using (var memoryStream = new MemoryStream())
-                //{
-                //    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
-                //    {
-                //        await writer.WriteAsync(message);
-                //        await writer.FlushAsync();
-                //    }
+                using (var memoryStream = new MemoryStream())
+                {
+                    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
+                    {
+                        await writer.WriteAsync(message);
+                        await writer.FlushAsync();
+                    }
 
-                //    memoryStream.Position = 0;
-                //    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
-                //}
+                    memoryStream.Position = 0;
+                    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
+                }
             }
             else
             {
@@ -91,7 +106,7 @@ namespace DiscordBGGCollection
             }
 
             var gameNames = games.Select(g => g.Name);
-            var message = $"Games for {username}: {string.Join(", ", gameNames)}";
+            var message = $"Games {username} wants to play (NOT a wishlist): {string.Join(", ", gameNames)}";
 
             // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
@@ -157,7 +172,7 @@ namespace DiscordBGGCollection
 
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
-            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
+            var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}"));
             var xdoc = XDocument.Parse(response);
 
             var games = xdoc.Descendants("item")
@@ -176,7 +191,7 @@ namespace DiscordBGGCollection
 
         public async Task<List<BoardGame>> FetchWantToPlayGamesFromBGG(string username)
         {
-            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?wanttoplay=1&username={username}");
+            var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?wanttoplay=1&username={username}"));
             var xdoc = XDocument.Parse(response);
 
             var games = xdoc.Descendants("item")
