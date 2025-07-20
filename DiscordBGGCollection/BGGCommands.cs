@@ -1,29 +1,50 @@
+/*
+ * This file is part of the DiscordBGGCollection project.
+ *
+ * (c) Jason Poggioli <jason.poggioli@gmail.com>
+ *
+ * Register a Discord Bot at https://discord.com/developers/applications
+ */
+
 namespace DiscordBGGCollection
 {
+    using Discord;
+    using Discord.Commands;
+    using Microsoft.Extensions.Configuration;
+    using Polly;
+    using Polly.Retry;
     using System.Collections.Generic;
+    using System.ComponentModel;
     using System.IO;
-    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
+    using System.Net;
     using System.Net.Http;
     using System.Text;
     using System.Threading.Tasks;
     using System.Xml.Linq;
-    using Discord.Commands;
 
     [Group("bgg")]
     public class BGGCommands : ModuleBase<SocketCommandContext>
     {
         private readonly HttpClient _httpClient;
+        private readonly AsyncRetryPolicy _retryPolicy;
+        private readonly IConfiguration _configuration;
 
-        public BGGCommands(HttpClient httpClient)
+        public BGGCommands(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
+            _configuration = configuration;
+
+            _retryPolicy = Policy
+                .Handle<HttpRequestException>()
+                .Or<TaskCanceledException>()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
         }
 
         [Command("help")]
         public async Task HelpAsync()
         {
-            var helpMessage = "Available commands:\n" +
+            var helpMessage = "Available commands (Note: usernames are BGG usernames):\n" +
                               "/bgg help - Lists all available commands.\n" +
                               "/bgg games <username> - Fetches games for the specified BGG username.\n" +
                               "/bgg plays <username> - Fetches play statistics for the specified BGG username.\n" +
@@ -34,6 +55,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("games")]
+        [Description("List all games for a provided BGG username")]
         public async Task GetGamesAsync(string username = null)
         {
             if (string.IsNullOrEmpty(username))
@@ -52,27 +74,10 @@ namespace DiscordBGGCollection
             var gameNames = games.Select(g => g.Name);
             var message = $"Games for {username}: {string.Join(", ", gameNames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
-                // Looking to replace with a file download instead
-                //using (var memoryStream = new MemoryStream())
-                //{
-                //    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
-                //    {
-                //        await writer.WriteAsync(message);
-                //        await writer.FlushAsync();
-                //    }
-
-                //    memoryStream.Position = 0;
-                //    await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
-                //}
+                await SendFileManuallyAsync(message, "games.txt");
             }
             else
             {
@@ -81,6 +86,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("wanttoplay")]
+        [Description("Retrieve list of games <BGG username> wants to play")]
         public async Task GetWantToPlayGamesAsync(string username)
         {
             var games = await FetchWantToPlayGamesFromBGG(username);
@@ -91,17 +97,12 @@ namespace DiscordBGGCollection
             }
 
             var gameNames = games.Select(g => g.Name);
-            var message = $"Games for {username}: {string.Join(", ", gameNames)}";
+            var message = $"Games {username} wants to play (NOT a wishlist): {string.Join(", ", gameNames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
+                await SendFileManuallyAsync(message, "wanttoplay.txt");
             }
             else
             {
@@ -110,6 +111,7 @@ namespace DiscordBGGCollection
         }
 
         [Command("compare")]
+        [Description("Compare <BGG username1> list of want to plays with <BGG username2>")]
         public async Task GetComparisonGamesAsync(string usernameToPlay, string usernameCollection)
         {
             var gamesToPlay = await FetchWantToPlayGamesFromBGG(usernameToPlay);
@@ -133,21 +135,16 @@ namespace DiscordBGGCollection
 
             if (!commonGames.Any())
             {
-                await ReplyAsync("No common games found between the two users.");
+                await ReplyAsync($"No games found where {usernameCollection} has something {usernameToPlay} wants to play.");
                 return;
             }
 
-            var message = $"Common games for {usernameToPlay} and {usernameCollection}: {string.Join(", ", commonGames)}";
+            var message = $"Games that {usernameToPlay} wants to play that {usernameCollection} has: {string.Join(", ", commonGames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
+                await SendFileManuallyAsync(message, "comparison.txt");
             }
             else
             {
@@ -155,28 +152,80 @@ namespace DiscordBGGCollection
             }
         }
 
+        public async Task SendFileManuallyAsync(string message, string filename)
+        {
+            var httpClient = new HttpClient();
+            var botToken = _configuration["BotToken"];
+            var channelId = Context.Channel.Id;
+            var url = $"https://discord.com/api/v10/channels/{channelId}/messages";
+
+            using var content = new MultipartFormDataContent();
+
+            if (message.Length <= 2000)
+            {
+                content.Add(new StringContent(message), "content");
+            }
+            else
+            {
+                content.Add(new StringContent("Here is your game list."), "content");
+            }
+
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(message));
+            var streamContent = new StreamContent(memoryStream);
+            content.Add(streamContent, "files[0]", filename);
+
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bot", botToken);
+            var response = await httpClient.PostAsync(url, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[HTTP ERROR] {response.StatusCode}: {error}");
+                await ReplyAsync("Discord rejected the file upload. Error logged.");
+            }
+        }
+
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
-            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
-            var xdoc = XDocument.Parse(response);
+            const int maxRetries = 5;
+            const int delayBase = 2000;
 
-            var games = xdoc.Descendants("item")
-                .Select(item => new BoardGame
+            for (int attempt = 0; attempt < maxRetries; attempt++)
+            {
+                var response = await _httpClient.GetAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
+
+                if (response.StatusCode == HttpStatusCode.Accepted)
                 {
-                    Name = item.Element("name")?.Value,
-                    YearPublished = int.Parse(item.Element("yearpublished")?.Value ?? "0"),
-                    ImageUrl = item.Element("image")?.Value,
-                    ThumbnailUrl = item.Element("thumbnail")?.Value,
-                    NumPlays = int.Parse(item.Element("numplays")?.Value ?? "0")
-                })
-                .ToList();
+                    await Task.Delay(delayBase * (attempt + 1));
+                    continue;
+                }
 
-            return games;
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var xdoc = XDocument.Parse(responseBody);
+
+                    var games = xdoc.Descendants("item")
+                        .Select(item => new BoardGame
+                        {
+                            Name = item.Element("name")?.Value,
+                            YearPublished = int.Parse(item.Element("yearpublished")?.Value ?? "0"),
+                            ImageUrl = item.Element("image")?.Value,
+                            ThumbnailUrl = item.Element("thumbnail")?.Value,
+                            NumPlays = int.Parse(item.Element("numplays")?.Value ?? "0")
+                        })
+                        .ToList();
+
+                    return games;
+                }
+                break;
+            }
+            return null;
         }
 
         public async Task<List<BoardGame>> FetchWantToPlayGamesFromBGG(string username)
         {
-            var response = await _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?wanttoplay=1&username={username}");
+            var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?wanttoplay=1&username={username}"));
             var xdoc = XDocument.Parse(response);
 
             var games = xdoc.Descendants("item")
@@ -191,16 +240,6 @@ namespace DiscordBGGCollection
                 .ToList();
 
             return games;
-        }
-
-        private List<string> SplitMessage(string message, int maxLength)
-        {
-            var messages = new List<string>();
-            for (int i = 0; i < message.Length; i += maxLength)
-            {
-                messages.Add(message.Substring(i, Math.Min(maxLength, message.Length - i)));
-            }
-            return messages;
         }
 
         [Command("plays")]
