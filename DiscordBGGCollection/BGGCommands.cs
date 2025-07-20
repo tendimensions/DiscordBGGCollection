@@ -10,13 +10,11 @@ namespace DiscordBGGCollection
 {
     using Discord;
     using Discord.Commands;
-    using Discord.Rest;
     using Microsoft.Extensions.Configuration;
     using Polly;
     using Polly.Retry;
     using System.Collections.Generic;
     using System.ComponentModel;
-    using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -76,39 +74,10 @@ namespace DiscordBGGCollection
             var gameNames = games.Select(g => g.Name);
             var message = $"Games for {username}: {string.Join(", ", gameNames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                //var messages = SplitMessage(message, maxMessageLength);
-                //foreach (var msg in messages)
-                //{
-                //    await ReplyAsync(msg);
-                //}
-                // Looking to replace with a file download instead
-                using (var memoryStream = new MemoryStream())
-                {
-                    Console.WriteLine("Preparing message in memory");
-                    using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, 1024, leaveOpen: true))
-                    {
-                        await writer.WriteAsync(message);
-                        await writer.FlushAsync();
-                    }
-
-                    if (memoryStream.Length == 0)
-                    {
-                        await ReplyAsync("There was an error generating the games list file.");
-                        return;
-                    }
-
-                    Console.WriteLine("Message in memory ready to stream");
-                    memoryStream.Position = 0;
-                    var attachment = new FileAttachment(memoryStream, "games.txt");
-
-                    await SendFileManuallyAsync(message, "games.txt");
-
-                    Console.WriteLine("Async sent file");
-                }
+                await SendFileManuallyAsync(message, "games.txt");
             }
             else
             {
@@ -130,15 +99,10 @@ namespace DiscordBGGCollection
             var gameNames = games.Select(g => g.Name);
             var message = $"Games {username} wants to play (NOT a wishlist): {string.Join(", ", gameNames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
+                await SendFileManuallyAsync(message, "wanttoplay.txt");
             }
             else
             {
@@ -177,15 +141,10 @@ namespace DiscordBGGCollection
 
             var message = $"Games that {usernameToPlay} wants to play that {usernameCollection} has: {string.Join(", ", commonGames)}";
 
-            // Split the message if it exceeds Discord's message length limit
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
             {
-                var messages = SplitMessage(message, maxMessageLength);
-                foreach (var msg in messages)
-                {
-                    await ReplyAsync(msg);
-                }
+                await SendFileManuallyAsync(message, "comparison.txt");
             }
             else
             {
@@ -198,12 +157,10 @@ namespace DiscordBGGCollection
             var httpClient = new HttpClient();
             var botToken = _configuration["BotToken"];
             var channelId = Context.Channel.Id;
-
             var url = $"https://discord.com/api/v10/channels/{channelId}/messages";
 
             using var content = new MultipartFormDataContent();
 
-            // Only add message to "content" if it's within 2000 characters
             if (message.Length <= 2000)
             {
                 content.Add(new StringContent(message), "content");
@@ -213,13 +170,11 @@ namespace DiscordBGGCollection
                 content.Add(new StringContent("Here is your game list."), "content");
             }
 
-            // File stream
             var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(message));
             var streamContent = new StreamContent(memoryStream);
             content.Add(streamContent, "files[0]", filename);
 
             httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bot", botToken);
-
             var response = await httpClient.PostAsync(url, content);
 
             if (!response.IsSuccessStatusCode)
@@ -233,7 +188,7 @@ namespace DiscordBGGCollection
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
             const int maxRetries = 5;
-            const int delayBase = 2000; // milliseconds
+            const int delayBase = 2000;
 
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
@@ -241,8 +196,7 @@ namespace DiscordBGGCollection
 
                 if (response.StatusCode == HttpStatusCode.Accepted)
                 {
-                    // BGG is still preparing the response
-                    await Task.Delay(delayBase * (attempt + 1)); // exponential backoff
+                    await Task.Delay(delayBase * (attempt + 1));
                     continue;
                 }
 
@@ -264,12 +218,8 @@ namespace DiscordBGGCollection
 
                     return games;
                 }
-
-                // Unexpected status code — optionally log or break early
                 break;
             }
-
-            // If we exhausted retries or hit an error, return null
             return null;
         }
 
@@ -290,16 +240,6 @@ namespace DiscordBGGCollection
                 .ToList();
 
             return games;
-        }
-
-        private List<string> SplitMessage(string message, int maxLength)
-        {
-            var messages = new List<string>();
-            for (int i = 0; i < message.Length; i += maxLength)
-            {
-                messages.Add(message.Substring(i, Math.Min(maxLength, message.Length - i)));
-            }
-            return messages;
         }
 
         [Command("plays")]
