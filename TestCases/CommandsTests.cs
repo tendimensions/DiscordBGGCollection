@@ -1,10 +1,26 @@
-﻿using System.Net.Http;
+﻿using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading.Tasks;
 using DiscordBGGCollection;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 public class CommandsTests
 {
+    private static BGGCommands CreateTestCommandInstance()
+    {
+        var httpClient = new HttpClient();
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                { "BotToken", "TEST_TOKEN" } // Dummy token just to satisfy constructor
+            })
+            .Build();
+
+        return new BGGCommands(httpClient, config);
+    }
+
     [Theory]
     [InlineData("tendimensions")]
     [InlineData("sjkellyfetti")]
@@ -12,8 +28,7 @@ public class CommandsTests
     public async Task FetchGamesFromBGG_ReturnsGamesList(string username)
     {
         // Arrange
-        var httpClient = new HttpClient();
-        var commands = new BGGCommands(httpClient);
+        var commands = CreateTestCommandInstance();
 
         // Act
         var result = await commands.FetchGamesFromBGG(username);
@@ -30,8 +45,7 @@ public class CommandsTests
     public async Task FetchWantToPlayGamesFromBGG_ReturnsGamesList(string username)
     {
         // Arrange
-        var httpClient = new HttpClient();
-        var commands = new BGGCommands(httpClient);
+        var commands = CreateTestCommandInstance();
 
         // Act
         var result = await commands.FetchWantToPlayGamesFromBGG(username);

@@ -8,28 +8,35 @@
 
 namespace DiscordBGGCollection
 {
+    using Discord;
+    using Discord.Commands;
+    using Discord.Rest;
+    using Microsoft.Extensions.Configuration;
+    using Polly;
+    using Polly.Retry;
     using System.Collections.Generic;
-    using System.IO;
+    using System.ComponentModel;
     using System.Diagnostics.CodeAnalysis;
+    using System.IO;
     using System.Linq;
+    using System.Net;
     using System.Net.Http;
     using System.Text;
     using System.Threading.Tasks;
     using System.Xml.Linq;
-    using Discord.Commands;
-    using Polly;
-    using Polly.Retry;
-    using System.ComponentModel;
 
     [Group("bgg")]
     public class BGGCommands : ModuleBase<SocketCommandContext>
     {
         private readonly HttpClient _httpClient;
         private readonly AsyncRetryPolicy _retryPolicy;
+        private readonly IConfiguration _configuration;
 
-        public BGGCommands(HttpClient httpClient)
+        public BGGCommands(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
+            _configuration = configuration;
+
             _retryPolicy = Policy
                 .Handle<HttpRequestException>()
                 .Or<TaskCanceledException>()
@@ -88,10 +95,17 @@ namespace DiscordBGGCollection
                         await writer.FlushAsync();
                     }
 
+                    if (memoryStream.Length == 0)
+                    {
+                        await ReplyAsync("There was an error generating the games list file.");
+                        return;
+                    }
+
                     Console.WriteLine("Message in memory ready to stream");
                     memoryStream.Position = 0;
-                    //await Context.Channel.SendFileAsync(memoryStream, "games.txt", $"Games for {username}:");
-                    await Context.Channel.SendFileAsync(memoryStream, "games.txt");
+                    var attachment = new FileAttachment(memoryStream, "games.txt");
+
+                    await SendFileManuallyAsync(message, "games.txt");
 
                     Console.WriteLine("Async sent file");
                 }
@@ -179,23 +193,84 @@ namespace DiscordBGGCollection
             }
         }
 
+        public async Task SendFileManuallyAsync(string message, string filename)
+        {
+            var httpClient = new HttpClient();
+            var botToken = _configuration["BotToken"];
+            var channelId = Context.Channel.Id;
+
+            var url = $"https://discord.com/api/v10/channels/{channelId}/messages";
+
+            using var content = new MultipartFormDataContent();
+
+            // Only add message to "content" if it's within 2000 characters
+            if (message.Length <= 2000)
+            {
+                content.Add(new StringContent(message), "content");
+            }
+            else
+            {
+                content.Add(new StringContent("Here is your game list."), "content");
+            }
+
+            // File stream
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(message));
+            var streamContent = new StreamContent(memoryStream);
+            content.Add(streamContent, "files[0]", filename);
+
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bot", botToken);
+
+            var response = await httpClient.PostAsync(url, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[HTTP ERROR] {response.StatusCode}: {error}");
+                await ReplyAsync("Discord rejected the file upload. Error logged.");
+            }
+        }
+
         public async Task<List<BoardGame>> FetchGamesFromBGG(string username)
         {
-            var response = await _retryPolicy.ExecuteAsync(() => _httpClient.GetStringAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}"));
-            var xdoc = XDocument.Parse(response);
+            const int maxRetries = 5;
+            const int delayBase = 2000; // milliseconds
 
-            var games = xdoc.Descendants("item")
-                .Select(item => new BoardGame
+            for (int attempt = 0; attempt < maxRetries; attempt++)
+            {
+                var response = await _httpClient.GetAsync($"https://boardgamegeek.com/xmlapi2/collection?own=1&username={username}");
+
+                if (response.StatusCode == HttpStatusCode.Accepted)
                 {
-                    Name = item.Element("name")?.Value,
-                    YearPublished = int.Parse(item.Element("yearpublished")?.Value ?? "0"),
-                    ImageUrl = item.Element("image")?.Value,
-                    ThumbnailUrl = item.Element("thumbnail")?.Value,
-                    NumPlays = int.Parse(item.Element("numplays")?.Value ?? "0")
-                })
-                .ToList();
+                    // BGG is still preparing the response
+                    await Task.Delay(delayBase * (attempt + 1)); // exponential backoff
+                    continue;
+                }
 
-            return games;
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var xdoc = XDocument.Parse(responseBody);
+
+                    var games = xdoc.Descendants("item")
+                        .Select(item => new BoardGame
+                        {
+                            Name = item.Element("name")?.Value,
+                            YearPublished = int.Parse(item.Element("yearpublished")?.Value ?? "0"),
+                            ImageUrl = item.Element("image")?.Value,
+                            ThumbnailUrl = item.Element("thumbnail")?.Value,
+                            NumPlays = int.Parse(item.Element("numplays")?.Value ?? "0")
+                        })
+                        .ToList();
+
+                    return games;
+                }
+
+                // Unexpected status code — optionally log or break early
+                break;
+            }
+
+            // If we exhausted retries or hit an error, return null
+            return null;
         }
 
         public async Task<List<BoardGame>> FetchWantToPlayGamesFromBGG(string username)
