@@ -71,8 +71,21 @@ namespace DiscordBGGCollection
                 return;
             }
 
-            var gameNames = games.Select(g => g.Name);
-            var message = $"Games for {username}: {string.Join(", ", gameNames)}";
+            //var gameNames = games.Select(g => g.Name);
+            var lines = new List<string> { $"Games for {username}:" };
+            lines.Add(string.Format("{0,-4} {1,-40} {2,-6} {3,-5}", "#", "Game Title", "Year", "Plays"));
+
+            int i = 1;
+            foreach (var game in games)
+            {
+                var year = game.YearPublished == 0 ? "—" : game.YearPublished.ToString();
+                var name = game.Name?.Length > 40 ? game.Name.Substring(0, 37) + "..." : game.Name;
+
+                lines.Add(string.Format("{0,-4} {1,-40} {2,-6} {3,-5}",
+                    i++, name, year, game.NumPlays));
+            }
+
+            var message = string.Join("\n", lines);
 
             const int maxMessageLength = 2000;
             if (message.Length > maxMessageLength)
