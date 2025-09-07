@@ -1,0 +1,10 @@
+# Ignore sensitive configuration and unnecessary files
+DiscordBGGCollection/appsettings.json
+TestCases/appsettings.json
+*.user
+*.md
+bin/
+obj/
+.git
+.gitignore
+Dockerfile
