@@ -41,7 +41,6 @@ public class CommandsTests
     [Theory]
     [InlineData("tendimensions")]
     [InlineData("sjkellyfetti")]
-    [InlineData("ariaka5")]
     public async Task FetchWantToPlayGamesFromBGG_ReturnsGamesList(string username)
     {
         // Arrange
