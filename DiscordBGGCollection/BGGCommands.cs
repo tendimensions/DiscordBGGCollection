@@ -35,6 +35,13 @@ namespace DiscordBGGCollection
             _httpClient = httpClient;
             _configuration = configuration;
 
+            var bggApiKey = configuration["BggApiKey"];
+            if (!string.IsNullOrEmpty(bggApiKey))
+            {
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bggApiKey);
+            }
+
             _retryPolicy = Policy
                 .Handle<HttpRequestException>()
                 .Or<TaskCanceledException>()
@@ -78,7 +85,7 @@ namespace DiscordBGGCollection
             int i = 1;
             foreach (var game in games)
             {
-                var year = game.YearPublished == 0 ? "—" : game.YearPublished.ToString();
+                var year = game.YearPublished == 0 ? "ï¿½" : game.YearPublished.ToString();
                 var name = game.Name?.Length > 40 ? game.Name.Substring(0, 37) + "..." : game.Name;
 
                 lines.Add(string.Format("{0,-4} {1,-40} {2,-6} {3,-5}",
